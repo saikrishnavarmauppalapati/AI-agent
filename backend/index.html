@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI YouTube Agent</title>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background: url('https://images.unsplash.com/photo-1522199710521-72d69614c702?w=1600') no-repeat center center/cover;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.chat-container {
+  width: 500px;
+  height: 700px;
+  background: rgba(255,255,255,0.95);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 0 25px rgba(0,0,0,0.3);
+}
+
+.messages {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.input-box {
+  display: flex;
+  padding: 10px;
+  border-top: 1px solid #ddd;
+}
+
+input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #aaa;
+  font-size: 15px;
+}
+
+button {
+  padding: 8px 12px;
+  margin: 4px 2px;
+  border: none;
+  background: #0078ff;
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 10px;
+}
+
+.video-card {
+  background: white;
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.video-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.thumb {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.bot {
+  background: #e8f2ff;
+  padding: 10px;
+  border-radius: 8px;
+  margin: 6px 0;
+}
+
+.user {
+  background: #d1ffd6;
+  padding: 10px;
+  border-radius: 8px;
+  margin: 6px 0;
+  text-align: right;
+}
+
+.button-row {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 6px;
+}
+</style>
+</head>
+<body>
+
+<div class="chat-container">
+  <div class="messages" id="messages"></div>
+  <div class="input-box">
+    <input id="input" placeholder="Type here… (ex: search devops videos)" />
+    <button onclick="send()">Send</button>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+function addMessage(text, sender = "bot") {
+  const box = document.createElement("div");
+  box.className = sender;
+  box.innerText = text;
+  document.getElementById("messages").appendChild(box);
+  box.scrollIntoView({behavior: "smooth"});
+}
+
+async function send() {
+  const input = document.getElementById("input");
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMessage(text, "user");
+  input.value = "";
+
+  const msg = text.toLowerCase();
+
+  try {
+    if (msg.includes("search")) {
+      const q = text.replace(/search/i, "").trim();
+      addMessage(`🔎 Searching for: ${q}...`);
+      const res = await fetch(`${API}/search?query=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      showVideos(data);
+      return;
+    }
+
+    if (msg.includes("liked")) {
+      addMessage("📌 Fetching your liked videos...");
+      const res = await fetch(`${API}/liked`);
+      const data = await res.json();
+      showVideos(data);
+      return;
+    }
+
+    if (msg.includes("recommend")) {
+      addMessage("🎯 Fetching recommended videos...");
+      const res = await fetch(`${API}/recommend`);
+      const data = await res.json();
+      showVideos(data);
+      return;
+    }
+
+    addMessage("🤖 I can help! Try: search <query>, liked videos, recommend videos");
+  } catch (err) {
+    addMessage(`⚠️ Error: ${err.message || err}`, "bot");
+  }
+}
+
+function showVideos(list) {
+  if (!Array.isArray(list)) {
+    addMessage("⚠️ No videos found or an error occurred.", "bot");
+    console.log(list);
+    return;
+  }
+
+  const messages = document.getElementById("messages");
+  const grid = document.createElement("div");
+  grid.className = "video-grid";
+
+  list.forEach(v => {
+    const card = document.createElement("div");
+    card.className = "video-card";
+
+    const videoLink = `https://www.youtube.com/watch?v=${v.videoId}`;
+
+    card.innerHTML = `
+      <img class="thumb" src="https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg" />
+      <b>${v.title}</b><br>
+      <small>${v.channelTitle}</small>
+      <div class="button-row">
+        <button onclick="likeVideo('${v.videoId}')">👍 Like</button>
+        <button onclick="commentVideo('${v.videoId}')">💬 Comment</button>
+        <button onclick="subscribeChannel('${v.videoId}')">🔔 Subscribe</button>
+      </div>
+    `;
+
+    grid.appendChild(card);
+  });
+
+  messages.appendChild(grid);
+  grid.scrollIntoView({behavior: "smooth"});
+}
+
+async function likeVideo(videoId) {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const res = await fetch(`${API}/like?videoUrl=${encodeURIComponent(url)}`);
+  const data = await res.json();
+  addMessage(data.message || JSON.stringify(data), "bot");
+}
+
+async function commentVideo(videoId) {
+  const text = prompt("Enter comment:");
+  if (!text) return;
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const res = await fetch(`${API}/comment?videoUrl=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
+  const data = await res.json();
+  addMessage(data.message || JSON.stringify(data), "bot");
+}
+
+async function subscribeChannel(videoId) {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const res = await fetch(`${API}/subscribe?videoUrl=${encodeURIComponent(url)}`);
+  const data = await res.json();
+  addMessage(data.message || JSON.stringify(data), "bot");
+}
+</script>
+
+</body>
+</html>
